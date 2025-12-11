@@ -1,21 +1,44 @@
 Project layout (exact)
 
 terraform-project/
-├── terraform-azurerm-foundation/
-│   ├── versions.tf
-│   ├── variables.tf
-│   ├── resource_groups.tf
-│   ├── vnet.tf
-│   ├── subnet.tf
-│   └── outputs.tf
 │
-├── terraform-azurerm-compute/
-│   ├── versions.tf
-│   ├── variables.tf
-│   ├── nic.tf
-│   └── vm.tf
+├─ terraform-azurerm-foundation/        # ONE foundation module
+│   ├─ rg.tf
+│   ├─ vnet.tf
+│   ├─ subnet.tf
+│   ├─ variables.tf       ← uses optional() so resources deploy individually
+│   ├─ outputs.tf
+│   └─ versions.tf
 │
-└── vm-deployment/
-    └── app/
-        ├── main.tf
-        └── terraform.tfvars.json
+├─ terraform-azurerm-compute/           # VM module
+│   ├─ vm.tf
+│   ├─ nic.tf
+│   ├─ public_ip.tf
+│   ├─ data_lookup.tf
+│   ├─ variables.tf
+│   ├─ outputs.tf
+│   └─ versions.tf
+│
+├─ resource-deployment/                 # Deploy resources independently
+│   ├─ resource_groups/
+│   │   └─ app/
+│   │       ├─ main.tf
+│   │       └─ terraform.tfvars.json
+│   │
+│   ├─ virtual_networks/
+│   │   └─ app/
+│   │       ├─ main.tf
+│   │       └─ terraform.tfvars.json
+│   │
+│   └─ subnets/
+│       └─ app/
+│           ├─ main.tf
+│           └─ terraform.tfvars.json
+│
+├─ vm-deployment/
+│   └─ <vm-name>/
+│       └─ app/
+│           ├─ main.tf
+│           └─ terraform.tfvars.json
+│
+└─ README.md
