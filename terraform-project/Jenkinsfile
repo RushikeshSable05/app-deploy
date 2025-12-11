@@ -1,0 +1,91 @@
+pipeline {
+  agent any
+
+  parameters {
+    choice(name: 'COMPONENT', choices: ['resource_groups', 'virtual_networks', 'subnets', 'all'], description: 'Which stack to apply')
+    string(name: 'ENV_FOLDER', defaultValue: 'app', description: 'Subfolder under each component (default: app)')
+    booleanParam(name: 'AUTO_APPROVE', defaultValue: false, description: 'If true, skip manual approval and auto-apply')
+  }
+
+  environment {
+    TF_IN_AUTOMATION = "1"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps { checkout scm }
+    }
+
+    stage('Setup Azure Credentials') {
+      steps {
+        withCredentials([
+          string(credentialsId: 'AZURE_CLIENT_ID', variable: 'ARM_CLIENT_ID'),
+          string(credentialsId: 'AZURE_CLIENT_SECRET', variable: 'ARM_CLIENT_SECRET'),
+          string(credentialsId: 'AZURE_TENANT_ID', variable: 'ARM_TENANT_ID'),
+          string(credentialsId: 'AZURE_SUBSCRIPTION_ID', variable: 'ARM_SUBSCRIPTION_ID')
+        ]) {
+          sh '''
+            az login --service-principal -u "$ARM_CLIENT_ID" -p "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID"
+            az account set --subscription "$ARM_SUBSCRIPTION_ID"
+
+            export ARM_CLIENT_ID="$ARM_CLIENT_ID"
+            export ARM_CLIENT_SECRET="$ARM_CLIENT_SECRET"
+            export ARM_TENANT_ID="$ARM_TENANT_ID"
+            export ARM_SUBSCRIPTION_ID="$ARM_SUBSCRIPTION_ID"
+            echo "Azure login complete."
+          '''
+        }
+      }
+    }
+
+    stage('Prepare dirs') {
+      steps {
+        script {
+          def comps = []
+          if (params.COMPONENT == 'all') {
+            comps = ['resource_groups','virtual_networks','subnets']
+          } else {
+            comps = [params.COMPONENT]
+          }
+          env.TF_DIRS = comps.collect { "resource-deployment/${it}/${params.ENV_FOLDER}" }.join(',')
+          echo "TF directories: ${env.TF_DIRS}"
+        }
+      }
+    }
+
+    stage('Terraform: init plan apply') {
+      steps {
+        script {
+          def dirs = env.TF_DIRS.split(',')
+          for (d in dirs) {
+            dir(d) {
+              sh 'pwd; ls -la'
+              sh 'terraform init -input=false'
+
+              def varfile = fileExists('terraform.tfvars.json') ? ' -var-file=terraform.tfvars.json' : ''
+              def safeName = d.replaceAll('[^a-zA-Z0-9_]','_')
+
+              sh "terraform plan -input=false -out=tfplan_${safeName}${varfile}"
+              sh "terraform show -no-color tfplan_${safeName} || true"
+
+              if (params.AUTO_APPROVE.toBoolean()) {
+                sh "terraform apply -input=false -auto-approve tfplan_${safeName}"
+              } else {
+                timeout(time: 60, unit: 'MINUTES') {
+                  input message: \"Approve apply for ${d}?\", ok: 'Apply'
+                }
+                sh "terraform apply -input=false -auto-approve tfplan_${safeName}"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      echo "Job complete."
+    }
+  }
+}
