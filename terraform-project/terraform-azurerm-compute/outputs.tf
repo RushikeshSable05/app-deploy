@@ -1,11 +1,11 @@
-output "vm_ids" {
-  value = try({ for k, v in azurerm_linux_virtual_machine.this : k => v.id }, {})
-}
 
-output "nic_ids" {
-  value = try({ for k, v in azurerm_network_interface.this : k => v.id }, {})
-}
+# ============================================
+# OUTPUTS - All outputs are in their respective files
+# ============================================
+# - public_ips → public_ip.tf
+# - network_interfaces → nic.tf  
+# - virtual_machines → vm.tf
+# - data_disks → vm.tf
 
-output "osdisk_ids" {
-  value = try({ for k, v in azurerm_managed_disk.osdisk : k => v.id }, {})
-}
+# This file intentionally left empty
+# All outputs are co-located with their resources
